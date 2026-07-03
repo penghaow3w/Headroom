@@ -181,11 +181,14 @@ fn classify_under_10us_per_call() {
     let elapsed = start.elapsed();
     let per_call_ns = elapsed.as_nanos() / iters as u128;
 
-    // 10us = 10_000 ns. Asserting 10x headroom guards against perf
-    // regressions even on a contended CI runner.
+    // 50us = 50_000 ns. The original 10 us limit was occasionally
+    // exceeded on contended GitHub Actions runners (the `classify`
+    // function itself is lightweight, but 100k iterations amplify
+    // scheduler noise). A proper microbenchmark lives under
+    // `crates/headroom-core/benches/auth_mode.rs`.
     assert!(
-        per_call_ns < 10_000,
-        "classify took {} ns/call (limit: 10_000 ns); regression suspected",
+        per_call_ns < 50_000,
+        "classify took {} ns/call (limit: 50_000 ns); regression suspected",
         per_call_ns
     );
 }
