@@ -46,6 +46,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [0.27.1](https://github.com/penghaow3w/Headroom/compare/v0.27.0...v0.27.1) (2026-07-03)
+
+
+### Bug Fixes
+
+* generate uv.lock and remove it from e2e Dockerfiles ([fec4529](https://github.com/penghaow3w/Headroom/commit/fec4529f0ab43721e3d8867a8b51e279e329db77))
+* relax classify_under_10us_per_call threshold to 50us ([4c28607](https://github.com/penghaow3w/Headroom/commit/4c286078c5ed5c316da98cfd8b72119c9f60fa8e))
+
 ## [0.27.0](https://github.com/chopratejas/headroom/compare/v0.26.0...v0.27.0) (2026-06-22)
 
 
