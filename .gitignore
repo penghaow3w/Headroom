@@ -243,7 +243,7 @@ headroom-managed/
 .releaseetadata
 
 # uv lockfile: regenerated locally; not committed
-uv.lock
+# uv.lock is tracked — the root Dockerfile needs it for `uv pip install`
 
 # Rust extension `.so` symlinks placed by `scripts/build_rust_extension.sh`
 # into the `headroom/` package dir for local development. The real binary
