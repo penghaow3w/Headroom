@@ -150,18 +150,19 @@ jobs:
       - name: Ensure maintenance labels exist
         run: |
           set -euo pipefail
+          source .github/scripts/gh-retry.sh
 
-          gh label create "status: needs rebase" \
+          gh_retry label create "status: needs rebase" \
             --repo "$REPO" \
             --color "fbca04" \
             --description "Pull request branch is behind the base branch" \
             --force
-          gh label create "status: has conflicts" \
+          gh_retry label create "status: has conflicts" \
             --repo "$REPO" \
             --color "d73a4a" \
             --description "Pull request has merge conflicts with the base branch" \
             --force
-          gh label create "status: ci failing" \
+          gh_retry label create "status: ci failing" \
             --repo "$REPO" \
             --color "d73a4a" \
             --description "Required or reported CI checks are failing" \
@@ -180,15 +181,16 @@ jobs:
       - name: Label open pull requests
         run: |
           set -euo pipefail
+          source .github/scripts/gh-retry.sh
 
           if jq -e '.pull_request.number' "$GITHUB_EVENT_PATH" >/dev/null; then
             pr_numbers="$(jq -r '.pull_request.number' "$GITHUB_EVENT_PATH")"
           else
-            pr_numbers="$(gh pr list --repo "$REPO" --state open --limit 100 --json number --jq '.[].number')"
+            pr_numbers="$(gh_retry pr list --repo "$REPO" --state open --limit 100 --json number --jq '.[].number')"
           fi
 
           for pr in $pr_numbers; do
-            data="$(gh pr view "$pr" --repo "$REPO" \
+            data="$(gh_retry pr view "$pr" --repo "$REPO" \
               --json isDraft,labels,mergeStateStatus,statusCheckRollup)"
 
             merge_state="$(jq -r '.mergeStateStatus // "UNKNOWN"' <<<"$data")"

@@ -75,6 +75,19 @@ impl InMemoryCcrStore {
             self.map.remove(&oldest);
         }
     }
+
+    /// Re-check expiry atomically after releasing the initial read guard.
+    fn get_after_expired_read(&self, hash: &str) -> Option<String> {
+        if self
+            .map
+            .remove_if(hash, |_, entry| entry.inserted.elapsed() > self.ttl)
+            .is_some()
+        {
+            None
+        } else {
+            self.map.get(hash).map(|entry| entry.payload.clone())
+        }
+    }
 }
 
 impl Default for InMemoryCcrStore {
@@ -141,16 +154,7 @@ impl CcrStore for InMemoryCcrStore {
         // under the shard write lock; if it's still expired, evict.
         // Otherwise (a concurrent `put` refreshed it) leave it alone
         // and re-fetch its payload.
-        let was_removed = self
-            .map
-            .remove_if(hash, |_, entry| entry.inserted.elapsed() > self.ttl)
-            .is_some();
-        if was_removed {
-            None
-        } else {
-            // Concurrent refresh — return the fresh payload.
-            self.map.get(hash).map(|e| e.payload.clone())
-        }
+        self.get_after_expired_read(hash)
     }
 
     fn len(&self) -> usize {
@@ -269,49 +273,27 @@ mod tests {
         use std::sync::Arc;
         use std::thread;
 
-        let store = Arc::new(InMemoryCcrStore::with_capacity_and_ttl(
-            64,
-            Duration::from_millis(20),
-        ));
+        // Force the critical interleaving rather than depending on the OS
+        // scheduling both threads within a 20ms TTL on a busy CI runner.
+        let store = Arc::new(InMemoryCcrStore::with_capacity_and_ttl(64, DEFAULT_TTL));
         let key = "shared_key";
         let payload = "fresh";
 
-        // Seed.
-        store.put(key, payload);
+        store.put(key, "expired");
+        store.map.get_mut(key).unwrap().inserted =
+            Instant::now() - DEFAULT_TTL - Duration::from_secs(1);
+        assert!(store.map.get(key).unwrap().inserted.elapsed() > store.ttl);
 
         let writer = {
             let s = store.clone();
             thread::spawn(move || {
-                // 200 fresh re-stores, racing the reader.
-                for _ in 0..200 {
-                    s.put(key, payload);
-                }
-            })
-        };
-
-        let reader = {
-            let s = store.clone();
-            thread::spawn(move || {
-                let mut hits = 0;
-                for _ in 0..200 {
-                    if s.get(key).as_deref() == Some(payload) {
-                        hits += 1;
-                    }
-                }
-                hits
+                s.put(key, payload);
             })
         };
 
         writer.join().unwrap();
-        let hits = reader.join().unwrap();
-        // The entry must be live at the end (writer's last put won).
+        // Resume the expired-read path after another thread has refreshed it.
+        assert_eq!(store.get_after_expired_read(key).as_deref(), Some(payload));
         assert_eq!(store.get(key).as_deref(), Some(payload));
-        // Reader should have observed the live entry the vast majority
-        // of the time. Allow some misses on first iterations / TTL
-        // transitions but require strong majority.
-        assert!(
-            hits > 100,
-            "reader should mostly observe live entry, hits={hits}"
-        );
     }
 }
